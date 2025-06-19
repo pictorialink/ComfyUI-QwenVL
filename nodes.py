@@ -242,6 +242,7 @@ class Qwen2:
     def INPUT_TYPES(s):
         return {
             "required": {
+                "trans_switch": ("BOOLEAN", {"default": True, "label_on": "on", "label_off": "off"}),
                 "system": (
                     "STRING",
                     {
@@ -282,6 +283,7 @@ class Qwen2:
 
     def inference(
         self,
+        trans_switch,
         system,
         prompt,
         model,
@@ -291,6 +293,8 @@ class Qwen2:
         max_new_tokens,
         seed,
     ):
+        if not trans_switch:
+            return (prompt,)
         if not prompt.strip():
             return ("Error: Prompt input is empty.",)
 
