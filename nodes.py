@@ -343,7 +343,7 @@ class Qwen2:
                 quantization_config=quantization_config,
             )
             # 将模型移动到可用设备
-            self.model = self.model.to(self.device)
+            # self.model = self.model.to(self.device)
 
         with torch.no_grad():
             messages = [
