@@ -489,7 +489,10 @@ class RunQwen:
                 return (response,)
             else:
                 text = tokenizer.apply_chat_template(
-                    messages, tokenize=False, add_generation_prompt=True
+                    messages, 
+                    tokenize=False, 
+                    add_generation_prompt=True,
+                    enable_thinking=False,
                 )
 
                 inputs = tokenizer([text], return_tensors="pt").to(device)
@@ -586,9 +589,13 @@ class QwenModel:
                 quantization_config = BitsAndBytesConfig(
                     load_in_8bit=True,
                 )
+            elif self.model_id == "qwen/Qwen3-8B-FP8":
+                quantization_config = BitsAndBytesConfig(
+                    load_in_8bit=True,
+                    llm_int8_enable_fp32_cpu_offload=True,
+                )
             else:
                 quantization_config = None
-
 
             self.model = AutoModelForCausalLM.from_pretrained(
                 self.model_checkpoint,
