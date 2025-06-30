@@ -415,17 +415,18 @@ class LoadQwen:
     ):
         quantization = "none"
         seed = -1
+        model_id = f"qwen/{model}"
         Q = QwenModel() 
-        if Q.model is not None and Q.tokenizer is not None:
+        if Q.model is not None and Q.tokenizer is not None and Q.model_id == model_id:
             print(f"[QwenModel] Using cached model: {Q.model_checkpoint}")
             return ({"MODEL": Q},)
         
         if torch.backends.mps.is_available():
             print("Using MPS")
-            Q.MpsLoad(model)
+            Q.MpsLoad(model_id)
         else:
             print("Using CUDA")
-            Q.CudaLoad(model,seed,quantization)
+            Q.CudaLoad(model_id,seed,quantization)
         # 将模型移动到可用设备
         # self.model = self.model.to(self.device)
         return ({"MODEL": Q},)
@@ -529,6 +530,7 @@ class QwenModel:
         self.model_checkpoint = None
         self.tokenizer = None
         self.model = None
+        self.model_id = None
         if torch.backends.mps.is_available():
             self.device = torch.device("mps")
         else:
@@ -539,8 +541,8 @@ class QwenModel:
             and torch.cuda.get_device_capability(self.device)[0] >= 8
         )
 
-    def MpsLoad(self, model):
-        model_id = f"qwen/{model}"
+    def MpsLoad(self, model_id):
+        self.model_id = model_id
         self.model_checkpoint = os.path.join(
             folder_paths.models_dir, "LLM", os.path.basename(model_id)
         )
@@ -555,10 +557,10 @@ class QwenModel:
         self.tokenizer = tokenizer
         self.model = model
 
-    def CudaLoad(self, model,seed,quantization):
+    def CudaLoad(self, model_id,seed,quantization):
+        self.model_id = model_id
         if seed != -1:
             torch.manual_seed(seed)
-        model_id = f"qwen/{model}"
         self.model_checkpoint = os.path.join(
             folder_paths.models_dir, "LLM", os.path.basename(model_id)
         )
