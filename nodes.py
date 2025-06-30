@@ -390,17 +390,17 @@ class LoadQwen:
                     [
                         "Qwen2.5-3B-Instruct",
                         "Qwen2.5-7B-Instruct",
-                        "Qwen2.5-14B-Instruct",
-                        "Qwen2.5-32B-Instruct",
+                        "Qwen3-8B-FP8",
+                        "Qwen3-8B-MLX-4bit",
                     ],
                     {"default": "Qwen2.5-7B-Instruct"},
                 ),
-                "quantization": (
-                    ["none", "4bit", "8bit"],
-                    {"default": "none"},
-                ),  # add quantization type selection
+                # "quantization": (
+                #     ["none", "4bit", "8bit"],
+                #     {"default": "none"},
+                # ),  # add quantization type selection
                 
-                "seed": ("INT", {"default": -1}),  # add seed parameter, default is -1
+                # "seed": ("INT", {"default": -1}),  # add seed parameter, default is -1
             },
         }
 
@@ -411,10 +411,10 @@ class LoadQwen:
 
     def inference(
         self,
-        model,
-        quantization,
-        seed,
+        model
     ):
+        quantization = "none"
+        seed = -1
         Q = QwenModel() 
         if Q.model is not None and Q.tokenizer is not None:
             print(f"[QwenModel] Using cached model: {Q.model_checkpoint}")
@@ -438,6 +438,7 @@ class RunQwen:
         inputs = {
             "required": {
                 "config": ("MODEL", ),
+                "trans_switch": ("BOOLEAN", {"default": True, "label_on": "on", "label_off": "off"}),
                 "system": (
                     "STRING",
                     {
@@ -445,16 +446,7 @@ class RunQwen:
                         "multiline": True,
                     },
                 ),
-                "prompt": ("STRING", {"default": "", "multiline": True}),
-                "max_new_tokens": (
-                    "INT",
-                    {"default": 512, "min": 128, "max": 2048, "step": 1},
-                ),
-                "keep_model_loaded": ("BOOLEAN", {"default": False}),
-                "temperature": (
-                    "FLOAT",
-                    {"default": 0.7, "min": 0, "max": 1, "step": 0.1},
-                ),
+                "prompt": ("STRING", {"default": "", "multiline": True})
             }
         }
         return inputs
@@ -462,7 +454,11 @@ class RunQwen:
     RETURN_NAMES = ("STRING",)
     FUNCTION = "execute"
     CATEGORY = "Comfyui_QwenVL"
-    def execute(self, config, system, prompt, max_new_tokens, keep_model_loaded, temperature):
+    def execute(self, config, trans_switch,system, prompt):
+        if not trans_switch:
+            return (prompt,)
+        temperature = 0
+        max_new_tokens = 2048
         model = config["MODEL"].model
         tokenizer = config["MODEL"].tokenizer
         device = config["MODEL"].device
