@@ -388,6 +388,7 @@ class LoadQwen:
             "required": {
                 "model": (
                     [
+                        "none",
                         "Qwen2.5-3B-Instruct",
                         "Qwen2.5-7B-Instruct",
                         "Qwen3-8B-FP8",
@@ -423,9 +424,11 @@ class LoadQwen:
         
         if torch.backends.mps.is_available():
             print("Using MPS")
+            model_id = "qwen/Qwen3-8B-MLX-4bit"
             Q.MpsLoad(model_id)
         else:
             print("Using CUDA")
+            model_id = "qwen/Qwen3-8B-FP8"
             Q.CudaLoad(model_id,seed,quantization)
         # 将模型移动到可用设备
         # self.model = self.model.to(self.device)
