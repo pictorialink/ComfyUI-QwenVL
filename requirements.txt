@@ -7,5 +7,5 @@ accelerate
 qwen-vl-utils
 bitsandbytes
 optimum
-mlx_lm
+mlx_lm; sys_platform == 'darwin'
 git+https://github.com/huggingface/transformers
