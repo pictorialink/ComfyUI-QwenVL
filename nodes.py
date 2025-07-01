@@ -13,9 +13,6 @@ import numpy as np
 import folder_paths
 import subprocess
 import uuid
-from mlx_lm import load ,generate
-
-
 
 
 def tensor_to_pil(image_tensor, batch_index=0) -> Image:
@@ -31,9 +28,13 @@ class Qwen2VL:
         self.model_checkpoint = None
         self.processor = None
         self.model = None
-        self.device = (
-            torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-        )
+        if torch.cuda.is_available():
+            self.device = "cuda"
+        elif torch.backends.mps.is_available():
+            self.device = "mps"
+        else:
+            # Fallback to CPU if no GPU or MPS is available
+            self.device = "cpu"
         self.bf16_support = (
             torch.cuda.is_available()
             and torch.cuda.get_device_capability(self.device)[0] >= 8
@@ -196,7 +197,7 @@ class Qwen2VL:
                 videos=video_inputs,
                 padding=True,
                 return_tensors="pt",
-            ).to("cuda")
+            ).to(self.device)
 
             # 推理
             try:
@@ -218,8 +219,12 @@ class Qwen2VL:
                 del self.model
                 self.processor = None
                 self.model = None
-                torch.cuda.empty_cache()
-                torch.cuda.ipc_collect()
+                if self.device == "cuda":
+                    torch.cuda.empty_cache()
+                    torch.cuda.ipc_collect()
+                elif self.device == "mps":
+                    torch.mps.empty_cache()
+                    # MPS 平台不需要 ipc_collect() 对应函数
 
             # 删除临时视频文件
             if video_path:
@@ -461,6 +466,8 @@ class RunQwen:
     def execute(self, config, trans_switch,system, prompt):
         if not trans_switch:
             return (prompt,)
+        if torch.mps.is_available():
+            from mlx_lm import generate
         temperature = 0
         max_new_tokens = 2048
         model = config["MODEL"].model
@@ -548,6 +555,8 @@ class QwenModel:
         )
 
     def MpsLoad(self, model_id):
+        if torch.mps.is_available():
+            from mlx_lm import load
         self.model_id = model_id
         self.model_checkpoint = os.path.join(
             folder_paths.models_dir, "LLM", os.path.basename(model_id)
