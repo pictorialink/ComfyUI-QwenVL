@@ -1,0 +1,14 @@
+{
+    "common": [
+        {
+            "repo_id": "Qwen/Qwen2.5-VL-7B-Instruct",
+            "local_path": "models/LLM"
+        }
+    ],
+    "mps": [
+        {
+            "repo_id": "Qwen/Qwen3-8B-MLX-4bit",
+            "local_path": "models/LLM"
+        }
+    ]
+}

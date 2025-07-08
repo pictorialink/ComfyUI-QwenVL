@@ -393,13 +393,9 @@ class LoadQwen:
             "required": {
                 "model": (
                     [
-                        "none",
-                        "Qwen2.5-3B-Instruct",
-                        "Qwen2.5-7B-Instruct",
-                        "Qwen3-8B-FP8",
                         "Qwen3-8B-MLX-4bit",
                     ],
-                    {"default": "Qwen2.5-7B-Instruct"},
+                    {"default": "Qwen3-8B-MLX-4bit"},
                 ),
                 # "quantization": (
                 #     ["none", "4bit", "8bit"],
@@ -419,8 +415,6 @@ class LoadQwen:
         self,
         model
     ):
-        quantization = "none"
-        seed = -1
         model_id = f"qwen/{model}"
         Q = QwenModel() 
         if Q.model is not None and Q.tokenizer is not None and Q.model_id == model_id:
@@ -432,9 +426,7 @@ class LoadQwen:
             model_id = "qwen/Qwen3-8B-MLX-4bit"
             Q.MpsLoad(model_id)
         else:
-            print("Using CUDA")
-            model_id = "qwen/Qwen3-8B-FP8"
-            Q.CudaLoad(model_id,seed,quantization)
+            raise Exception("This node only supports the MPS.")
         # 将模型移动到可用设备
         # self.model = self.model.to(self.device)
         return ({"MODEL": Q},)
@@ -455,7 +447,13 @@ class RunQwen:
                         "multiline": True,
                     },
                 ),
-                "prompt": ("STRING", {"default": "", "multiline": True})
+                "prompt": ("STRING", {"default": "", "multiline": True}),
+                "seed": ("INT", {
+                    "default": 0,  # 默认值
+                    "min": 0,      # 最小值
+                    "max": 0xffffffffffffffff,  # 最大值（64位整数）
+                    "step": 1      # 步长
+                }),
             }
         }
         return inputs
@@ -463,16 +461,17 @@ class RunQwen:
     RETURN_NAMES = ("STRING",)
     FUNCTION = "execute"
     CATEGORY = "Comfyui_QwenVL"
-    def execute(self, config, trans_switch,system, prompt):
+    def execute(self, config, trans_switch,system, prompt, seed):
         if not trans_switch:
             return (prompt,)
         if torch.mps.is_available():
             from mlx_lm import generate
-        temperature = 0
-        max_new_tokens = 2048
+            import mlx.core as mx
+        else:
+            raise Exception("This node only supports the MPS.")
         model = config["MODEL"].model
         tokenizer = config["MODEL"].tokenizer
-        device = config["MODEL"].device
+        mx.random.seed(seed=seed)
         with torch.no_grad():
             messages = [
                 {"role": "system", "content": system},
@@ -481,7 +480,7 @@ class RunQwen:
 
             if torch.backends.mps.is_available():
                 if tokenizer.chat_template is not None:
-                    text = tokenizer.apply_chat_template(
+                    prompt = tokenizer.apply_chat_template(
                         messages,
                         tokenize=False,
                         add_generation_prompt=True,
@@ -490,7 +489,7 @@ class RunQwen:
                 response = generate(
                     model,
                     tokenizer,
-                    prompt=text,
+                    prompt=prompt,
                     verbose=False,
                     max_tokens=2048
                 )
@@ -498,31 +497,7 @@ class RunQwen:
                 del model
                 return (response,)
             else:
-                text = tokenizer.apply_chat_template(
-                    messages, 
-                    tokenize=False, 
-                    add_generation_prompt=True,
-                    enable_thinking=False,
-                )
-
-                inputs = tokenizer([text], return_tensors="pt").to(device)
-                generated_ids = model.generate(**inputs, max_new_tokens=max_new_tokens)
-                generated_ids_trimmed = [
-                    out_ids[len(in_ids) :]
-                    for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
-                ]
-                result = tokenizer.batch_decode(
-                    generated_ids_trimmed,
-                    skip_special_tokens=True,
-                    clean_up_tokenization_spaces=False,
-                    temperature=temperature,
-                )
-                #执行完毕要清除config
-                del tokenizer
-                del model
-                tokenizer = None
-                model = None
-                return result
+                raise Exception("This node only supports the MPS.")
     
  
 
@@ -569,49 +544,6 @@ class QwenModel:
                 local_dir_use_symlinks=False,
             )
         model, tokenizer = load(self.model_checkpoint)
+        print("Loaded tokenizer:", tokenizer.chat_template)
         self.tokenizer = tokenizer
         self.model = model
-
-    def CudaLoad(self, model_id,seed,quantization):
-        self.model_id = model_id
-        if seed != -1:
-            torch.manual_seed(seed)
-        self.model_checkpoint = os.path.join(
-            folder_paths.models_dir, "LLM", os.path.basename(model_id)
-        )
-
-        if not os.path.exists(self.model_checkpoint):
-            from huggingface_hub import snapshot_download
-            snapshot_download(
-                repo_id=model_id,
-                local_dir=self.model_checkpoint,
-                local_dir_use_symlinks=False,
-            )
-
-        if self.tokenizer is None:
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_checkpoint)
-
-        if self.model is None:
-            # Load the model on the available device(s)
-            if quantization == "4bit":
-                quantization_config = BitsAndBytesConfig(
-                    load_in_4bit=True,
-                )
-            elif quantization == "8bit":
-                quantization_config = BitsAndBytesConfig(
-                    load_in_8bit=True,
-                )
-            elif self.model_id == "qwen/Qwen3-8B-FP8":
-                quantization_config = BitsAndBytesConfig(
-                    load_in_8bit=True,
-                    llm_int8_enable_fp32_cpu_offload=True,
-                )
-            else:
-                quantization_config = None
-
-            self.model = AutoModelForCausalLM.from_pretrained(
-                self.model_checkpoint,
-                torch_dtype=torch.bfloat16 if self.bf16_support else torch.float16,
-                device_map="auto",
-                quantization_config=quantization_config,
-            )

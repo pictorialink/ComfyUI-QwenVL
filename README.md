@@ -5,6 +5,8 @@ Qwen2VL node is renamed to Qwen2.5VL due to the release of new Qwen models
 
 
 ## Sample workflow
+The workflow of the Qwen3-8B in MPS version is [Qwen3-8B-MLX](workflow/Qwen3-8b-mlx.json)
+
 You can find a sample [workflow](workflow/Qwen2VL.json) here.
 
 ![alt text](workflow/comfy_workflow.png)
